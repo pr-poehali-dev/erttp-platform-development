@@ -1,10 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from '@/components/ui/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Icon from '@/components/ui/icon';
+import YandexMap from '@/components/YandexMap';
 
 type TariffType = 'economy' | 'comfort' | 'business';
 
@@ -35,11 +44,48 @@ export default function Index() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [activeRide, setActiveRide] = useState(false);
+  const [showDriverDialog, setShowDriverDialog] = useState(false);
+  const [rideStatus, setRideStatus] = useState<'searching' | 'found' | 'arriving' | 'inProgress'>('searching');
+
+  const driverInfo = {
+    name: 'Алексей Иванов',
+    rating: 4.9,
+    trips: 1247,
+    car: 'Toyota Camry',
+    plate: 'М777АА777',
+    photo: 'https://api.dicebear.com/7.x/avataaars/svg?seed=driver'
+  };
+
+  useEffect(() => {
+    if (activeRide) {
+      setRideStatus('searching');
+      toast({
+        title: '🔍 Ищем водителя...',
+        description: 'Подождите несколько секунд'
+      });
+
+      setTimeout(() => {
+        setRideStatus('found');
+        setShowDriverDialog(true);
+        toast({
+          title: '✅ Водитель найден!',
+          description: `${driverInfo.name} принял заказ`
+        });
+      }, 2000);
+
+      setTimeout(() => {
+        setRideStatus('arriving');
+        toast({
+          title: '🚗 Водитель едет к вам',
+          description: 'Прибудет через 3 минуты'
+        });
+      }, 4000);
+    }
+  }, [activeRide]);
 
   const handleOrder = () => {
     if (from && to) {
       setActiveRide(true);
-      setTimeout(() => setActiveRide(false), 5000);
     }
   };
 
@@ -79,12 +125,16 @@ export default function Index() {
           <TabsContent value="order" className="space-y-6">
             <Card className="p-6 bg-card border-border animate-scale-in">
               <div className="aspect-video bg-secondary rounded-lg mb-6 relative overflow-hidden">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <Icon name="Map" size={48} className="mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Карта маршрута</p>
+                {from && to ? (
+                  <YandexMap from={from} to={to} />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <Icon name="Map" size={48} className="mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Укажите адреса для отображения маршрута</p>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="absolute top-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-2">
                   <div className="flex items-center gap-2">
                     <Icon name="Navigation" size={16} className="text-primary" />
@@ -160,13 +210,69 @@ export default function Index() {
                     <Icon name="Car" className="text-white" size={24} />
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-semibold text-card-foreground">Водитель найден!</h4>
-                    <p className="text-sm text-muted-foreground">Прибудет через 3 минуты</p>
+                    <h4 className="font-semibold text-card-foreground">
+                      {rideStatus === 'searching' && 'Ищем водителя...'}
+                      {rideStatus === 'found' && 'Водитель найден!'}
+                      {rideStatus === 'arriving' && 'Водитель едет к вам'}
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      {rideStatus === 'arriving' && 'Прибудет через 3 минуты'}
+                    </p>
                   </div>
-                  <Badge variant="secondary">В пути</Badge>
+                  <Badge variant="secondary">
+                    {rideStatus === 'searching' ? 'Поиск' : 'В пути'}
+                  </Badge>
                 </div>
               </Card>
             )}
+
+            <Dialog open={showDriverDialog} onOpenChange={setShowDriverDialog}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-center">Ваш водитель</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col items-center space-y-4 py-4">
+                  <Avatar className="w-24 h-24">
+                    <AvatarImage src={driverInfo.photo} />
+                    <AvatarFallback>АИ</AvatarFallback>
+                  </Avatar>
+                  <div className="text-center">
+                    <h3 className="text-xl font-semibold">{driverInfo.name}</h3>
+                    <div className="flex items-center justify-center gap-2 mt-2">
+                      <Icon name="Star" className="text-yellow-500 fill-yellow-500" size={18} />
+                      <span className="font-medium">{driverInfo.rating}</span>
+                      <span className="text-muted-foreground text-sm">({driverInfo.trips} поездок)</span>
+                    </div>
+                  </div>
+                  <div className="w-full space-y-3 mt-4">
+                    <div className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Icon name="Car" size={20} className="text-primary" />
+                        <span className="text-sm">Автомобиль</span>
+                      </div>
+                      <span className="font-medium">{driverInfo.car}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Icon name="Hash" size={20} className="text-primary" />
+                        <span className="text-sm">Номер</span>
+                      </div>
+                      <span className="font-medium">{driverInfo.plate}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 w-full mt-4">
+                    <Button variant="outline" className="flex-1">
+                      <Icon name="Phone" size={18} className="mr-2" />
+                      Позвонить
+                    </Button>
+                    <Button variant="outline" className="flex-1">
+                      <Icon name="MessageSquare" size={18} className="mr-2" />
+                      Написать
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="active" className="space-y-4">
