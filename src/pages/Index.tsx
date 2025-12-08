@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Icon from '@/components/ui/icon';
-import YandexMap from '@/components/YandexMap';
+
 
 type TariffType = 'economy' | 'comfort' | 'business';
 
@@ -125,16 +125,26 @@ export default function Index() {
           <TabsContent value="order" className="space-y-6">
             <Card className="p-6 bg-card border-border animate-scale-in">
               <div className="aspect-video bg-secondary rounded-lg mb-6 relative overflow-hidden">
-                {from && to ? (
-                  <YandexMap from={from} to={to} />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <Icon name="Map" size={48} className="mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Укажите адреса для отображения маршрута</p>
-                    </div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <Icon name="Map" size={48} className="mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {from && to ? 'Маршрут построен' : 'Укажите адреса для отображения маршрута'}
+                    </p>
+                    {from && to && (
+                      <div className="mt-4 space-y-2 text-left max-w-sm mx-auto">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Icon name="Circle" size={10} className="text-muted-foreground" />
+                          <span className="text-muted-foreground">{from}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Icon name="MapPin" size={10} className="text-primary" />
+                          <span className="text-muted-foreground">{to}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
                 <div className="absolute top-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-2">
                   <div className="flex items-center gap-2">
                     <Icon name="Navigation" size={16} className="text-primary" />
