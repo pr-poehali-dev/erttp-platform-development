@@ -21,6 +21,7 @@ interface DriverOffer {
   arrivalTime: string;
   distance: number;
   cardNumber: string;
+  phone: string;
 }
 
 interface DriverOffersDialogProps {
@@ -69,7 +70,7 @@ export default function DriverOffersDialog({
             sortedOffers.map((driver, index) => (
               <Card
                 key={driver.id}
-                className={`p-4 border-2 transition-all hover:border-primary cursor-pointer ${
+                className={`p-4 border-2 transition-all hover:border-primary cursor-pointer animate-slide-in-right ${
                   index === 0 ? 'border-primary bg-primary/5' : 'border-border'
                 }`}
                 onClick={() => onAcceptOffer(driver)}

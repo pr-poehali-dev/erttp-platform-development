@@ -23,6 +23,7 @@ interface DriverOffer {
   arrivalTime: string;
   distance: number;
   cardNumber: string;
+  phone: string;
 }
 
 interface Ride {
@@ -31,7 +32,8 @@ interface Ride {
   to: string;
   date: string;
   price: number;
-  status: 'completed' | 'active' | 'cancelled';
+  status: 'completed' | 'active' | 'cancelled' | 'waiting' | 'driving' | 'arrived';
+  driver?: DriverOffer;
 }
 
 const mockRides: Ride[] = [
@@ -52,7 +54,8 @@ const mockDriverOffers: DriverOffer[] = [
     price: 380,
     arrivalTime: '3 мин',
     distance: 1.2,
-    cardNumber: '2200 7012 3456 7890'
+    cardNumber: '2200 7012 3456 7890',
+    phone: '+7 (900) 123-45-67'
   },
   {
     id: '2',
@@ -65,7 +68,8 @@ const mockDriverOffers: DriverOffer[] = [
     price: 420,
     arrivalTime: '5 мин',
     distance: 2.5,
-    cardNumber: '2200 7011 1111 2222'
+    cardNumber: '2200 7011 1111 2222',
+    phone: '+7 (900) 234-56-78'
   },
   {
     id: '3',
@@ -78,7 +82,8 @@ const mockDriverOffers: DriverOffer[] = [
     price: 350,
     arrivalTime: '7 мин',
     distance: 3.8,
-    cardNumber: '2200 7013 9999 8888'
+    cardNumber: '2200 7013 9999 8888',
+    phone: '+7 (900) 345-67-89'
   }
 ];
 
@@ -95,6 +100,8 @@ export default function Index() {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [minPrice] = useState(150);
+  const [activeRide, setActiveRide] = useState<Ride | null>(null);
+  const [rideStatus, setRideStatus] = useState<'waiting' | 'driving' | 'arrived' | null>(null);
 
   useEffect(() => {
     if (orderPublished && timeLeft > 0) {
@@ -102,6 +109,17 @@ export default function Index() {
         setTimeLeft((prev) => prev - 1);
       }, 1000);
       return () => clearInterval(timer);
+    }
+    
+    if (orderPublished && timeLeft === 0) {
+      setOrderPublished(false);
+      setShowOffersDialog(false);
+      setDriverOffers([]);
+      setTimeLeft(120);
+      toast({
+        title: '⏱️ Время истекло',
+        description: 'Заказ автоматически отменен. Попробуйте еще раз'
+      });
     }
   }, [orderPublished, timeLeft]);
 
@@ -235,6 +253,17 @@ export default function Index() {
     setShowPaymentDialog(true);
   };
 
+  const handleCancelOrder = () => {
+    setOrderPublished(false);
+    setShowOffersDialog(false);
+    setDriverOffers([]);
+    setTimeLeft(120);
+    toast({
+      title: '❌ Заказ отменен',
+      description: 'Вы можете создать новый заказ'
+    });
+  };
+
   const handlePayment = (driver: DriverOffer) => {
     const amount = driver.price;
     const cardNumber = driver.cardNumber.replace(/\s/g, '');
@@ -249,21 +278,64 @@ export default function Index() {
     });
 
     setTimeout(() => {
-      toast({
-        title: '✅ Водитель едет к вам!',
-        description: `Прибудет через ${driver.arrivalTime}`
-      });
-    }, 1500);
+      setShowPaymentDialog(false);
+      startRide();
+    }, 2000);
   };
 
   const handleCashPayment = () => {
     setShowPaymentDialog(false);
     if (selectedDriver) {
-      toast({
-        title: '✅ Водитель едет к вам!',
-        description: `Прибудет через ${selectedDriver.arrivalTime}`
-      });
+      startRide();
     }
+  };
+
+  const startRide = () => {
+    if (!selectedDriver) return;
+    
+    const ride: Ride = {
+      id: Date.now().toString(),
+      from,
+      to,
+      date: new Date().toISOString(),
+      price: selectedDriver.price,
+      status: 'waiting',
+      driver: selectedDriver
+    };
+    
+    setActiveRide(ride);
+    setRideStatus('waiting');
+    
+    toast({
+      title: '✅ Водитель принял заказ!',
+      description: `${selectedDriver.name} едет к вам`
+    });
+
+    setTimeout(() => {
+      setRideStatus('driving');
+      toast({
+        title: '🚗 Водитель подъехал',
+        description: 'Приятной поездки!'
+      });
+    }, 15000);
+
+    setTimeout(() => {
+      setRideStatus('arrived');
+      toast({
+        title: '🎉 Поездка завершена',
+        description: 'Спасибо за использование TaxiGo!'
+      });
+      
+      setTimeout(() => {
+        setActiveRide(null);
+        setRideStatus(null);
+        setSelectedDriver(null);
+        setFrom('');
+        setTo('');
+        setManualPrice('');
+        setPassengerPrice([400]);
+      }, 5000);
+    }, 35000);
   };
 
   const formatTime = (seconds: number) => {
@@ -309,83 +381,209 @@ export default function Index() {
           </TabsList>
 
           <TabsContent value="order" className="space-y-6">
-            <OrderForm
-              from={from}
-              to={to}
-              passengerPrice={passengerPrice}
-              manualPrice={manualPrice}
-              minPrice={minPrice}
-              gettingLocation={gettingLocation}
-              orderPublished={orderPublished}
-              timeLeft={timeLeft}
-              onFromChange={setFrom}
-              onToChange={setTo}
-              onPriceChange={handlePriceChange}
-              onSliderChange={(value) => {
-                setPassengerPrice(value);
-                setManualPrice('');
-              }}
-              onGeolocation={getGeolocation}
-              onPublishOrder={handlePublishOrder}
-              formatTime={formatTime}
-            />
+            {!orderPublished && !activeRide && (
+              <OrderForm
+                from={from}
+                to={to}
+                passengerPrice={passengerPrice}
+                manualPrice={manualPrice}
+                minPrice={minPrice}
+                gettingLocation={gettingLocation}
+                orderPublished={orderPublished}
+                timeLeft={timeLeft}
+                onFromChange={setFrom}
+                onToChange={setTo}
+                onPriceChange={handlePriceChange}
+                onSliderChange={(value) => {
+                  setPassengerPrice(value);
+                  setManualPrice('');
+                }}
+                onGeolocation={getGeolocation}
+                onPublishOrder={handlePublishOrder}
+                formatTime={formatTime}
+              />
+            )}
 
-            {orderPublished && driverOffers.length > 0 && (
+            {orderPublished && (
               <Card className="p-6 bg-card border-primary animate-slide-in-right">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Предложения водителей</h3>
-                  <Badge variant="secondary" className="animate-pulse">
-                    {driverOffers.length} предложений
-                  </Badge>
+                  <div>
+                    <h3 className="text-lg font-semibold">Поиск водителей</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {driverOffers.length === 0 
+                        ? 'Ожидаем предложения...' 
+                        : `Получено ${driverOffers.length} предложений`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="animate-pulse">
+                      <Icon name="Clock" size={14} className="mr-1" />
+                      {formatTime(timeLeft)}
+                    </Badge>
+                  </div>
                 </div>
+                {driverOffers.length > 0 && (
+                  <Button
+                    onClick={() => setShowOffersDialog(true)}
+                    variant="outline"
+                    className="w-full mb-3"
+                  >
+                    Посмотреть все предложения
+                    <Icon name="ChevronRight" size={18} className="ml-2" />
+                  </Button>
+                )}
                 <Button
-                  onClick={() => setShowOffersDialog(true)}
-                  variant="outline"
+                  onClick={handleCancelOrder}
+                  variant="destructive"
                   className="w-full"
                 >
-                  Посмотреть все предложения
-                  <Icon name="ChevronRight" size={18} className="ml-2" />
+                  <Icon name="X" size={18} className="mr-2" />
+                  Отменить заказ
                 </Button>
               </Card>
             )}
 
-            {selectedDriver && (
+            {activeRide && activeRide.driver && (
               <Card className="p-6 bg-card border-primary animate-scale-in">
-                <div className="flex items-center gap-4 mb-4">
-                  <Avatar className="w-16 h-16">
-                    <AvatarImage src={selectedDriver.photo} />
-                    <AvatarFallback>ВД</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-lg">{selectedDriver.name}</h4>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Icon name="Star" className="text-yellow-500 fill-yellow-500" size={16} />
-                      <span>{selectedDriver.rating}</span>
-                      <span>•</span>
-                      <span>{selectedDriver.car}</span>
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant={
+                      rideStatus === 'waiting' ? 'secondary' : 
+                      rideStatus === 'driving' ? 'default' : 
+                      'outline'
+                    } className="animate-pulse">
+                      {rideStatus === 'waiting' ? '⏳ Водитель едет к вам' : 
+                       rideStatus === 'driving' ? '🚗 В пути к месту назначения' : 
+                       '✅ Вы прибыли'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="pt-1">
+                      <Icon name="Circle" size={10} className="text-muted-foreground mb-1" />
+                      <div className="w-px h-12 bg-border ml-1"></div>
+                      <Icon name="MapPin" size={10} className="text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{activeRide.from}</p>
+                      <p className="text-sm font-medium mt-10">{activeRide.to}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-primary">{selectedDriver.price} ₽</div>
-                    <div className="text-sm text-muted-foreground">{selectedDriver.arrivalTime}</div>
-                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1">
-                    <Icon name="Phone" size={18} className="mr-2" />
-                    Позвонить
-                  </Button>
-                  <Button variant="outline" className="flex-1">
-                    <Icon name="MessageSquare" size={18} className="mr-2" />
-                    Написать
-                  </Button>
+                
+                <div className="border-t border-border pt-4">
+                  <div className="flex items-center gap-4 mb-4">
+                    <Avatar className="w-16 h-16">
+                      <AvatarImage src={activeRide.driver.photo} />
+                      <AvatarFallback>ВД</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-lg">{activeRide.driver.name}</h4>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Icon name="Star" className="text-yellow-500 fill-yellow-500" size={16} />
+                        <span>{activeRide.driver.rating}</span>
+                        <span>•</span>
+                        <span>{activeRide.driver.car}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{activeRide.driver.plate}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-primary">{activeRide.price} ₽</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => window.location.href = `tel:${activeRide.driver.phone}`}
+                    >
+                      <Icon name="Phone" size={18} className="mr-2" />
+                      Позвонить
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => window.location.href = `sms:${activeRide.driver.phone}`}
+                    >
+                      <Icon name="MessageSquare" size={18} className="mr-2" />
+                      Написать
+                    </Button>
+                  </div>
                 </div>
               </Card>
             )}
           </TabsContent>
 
           <TabsContent value="active" className="space-y-4">
-            {!selectedDriver && !orderPublished ? (
+            {activeRide && activeRide.driver ? (
+              <Card className="p-6 bg-card border-primary animate-scale-in">
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant={
+                      rideStatus === 'waiting' ? 'secondary' : 
+                      rideStatus === 'driving' ? 'default' : 
+                      'outline'
+                    } className="animate-pulse">
+                      {rideStatus === 'waiting' ? '⏳ Водитель едет' : 
+                       rideStatus === 'driving' ? '🚗 В пути' : 
+                       '✅ Прибыли'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="pt-1">
+                      <Icon name="Circle" size={10} className="text-muted-foreground mb-1" />
+                      <div className="w-px h-12 bg-border ml-1"></div>
+                      <Icon name="MapPin" size={10} className="text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{activeRide.from}</p>
+                      <p className="text-sm font-medium mt-10">{activeRide.to}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="border-t border-border pt-4">
+                  <div className="flex items-center gap-4 mb-4">
+                    <Avatar className="w-16 h-16">
+                      <AvatarImage src={activeRide.driver.photo} />
+                      <AvatarFallback>ВД</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-lg">{activeRide.driver.name}</h4>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Icon name="Star" className="text-yellow-500 fill-yellow-500" size={16} />
+                        <span>{activeRide.driver.rating}</span>
+                        <span>•</span>
+                        <span>{activeRide.driver.car}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{activeRide.driver.plate}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-primary">{activeRide.price} ₽</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => window.location.href = `tel:${activeRide.driver.phone}`}
+                    >
+                      <Icon name="Phone" size={18} className="mr-2" />
+                      Позвонить
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => window.location.href = `sms:${activeRide.driver.phone}`}
+                    >
+                      <Icon name="MessageSquare" size={18} className="mr-2" />
+                      Написать
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ) : !orderPublished ? (
               <Card className="p-12 bg-card border-border text-center">
                 <Icon name="Navigation" size={48} className="mx-auto mb-4 text-muted-foreground" />
                 <p className="text-muted-foreground">Нет активных поездок</p>

@@ -20,6 +20,7 @@ interface DriverOffer {
   arrivalTime: string;
   distance: number;
   cardNumber: string;
+  phone: string;
 }
 
 interface PaymentDialogProps {
