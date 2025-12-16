@@ -1,20 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/use-toast';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Slider } from '@/components/ui/slider';
 import Icon from '@/components/ui/icon';
-import YandexMap from '@/components/YandexMap';
+import OrderForm from '@/components/OrderForm';
+import DriverOffersDialog from '@/components/DriverOffersDialog';
+import PaymentDialog from '@/components/PaymentDialog';
+import RideHistory from '@/components/RideHistory';
 
 interface DriverOffer {
   id: string;
@@ -261,13 +256,21 @@ export default function Index() {
     }, 1500);
   };
 
+  const handleCashPayment = () => {
+    setShowPaymentDialog(false);
+    if (selectedDriver) {
+      toast({
+        title: '✅ Водитель едет к вам!',
+        description: `Прибудет через ${selectedDriver.arrivalTime}`
+      });
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
-  const sortedOffers = [...driverOffers].sort((a, b) => a.price - b.price);
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -306,131 +309,26 @@ export default function Index() {
           </TabsList>
 
           <TabsContent value="order" className="space-y-6">
-            <Card className="p-6 bg-card border-border animate-scale-in">
-              <div className="aspect-video bg-secondary rounded-lg mb-6 relative overflow-hidden">
-                {from && to ? (
-                  <YandexMap from={from} to={to} />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <Icon name="Map" size={48} className="mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Укажите адреса для отображения маршрута</p>
-                    </div>
-                  </div>
-                )}
-                <div className="absolute top-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <Icon name="Navigation" size={16} className="text-primary" />
-                    <span className="text-sm font-medium">Москва</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Icon name="Circle" className="absolute left-3 top-3 text-muted-foreground" size={20} />
-                    <Input
-                      placeholder="Откуда"
-                      value={from}
-                      onChange={(e) => setFrom(e.target.value)}
-                      className="pl-11 h-12 bg-secondary border-0"
-                    />
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={getGeolocation}
-                    disabled={gettingLocation}
-                    className="h-12 w-12 shrink-0"
-                  >
-                    {gettingLocation ? (
-                      <Icon name="Loader2" size={20} className="animate-spin" />
-                    ) : (
-                      <Icon name="Crosshair" size={20} />
-                    )}
-                  </Button>
-                </div>
-                <div className="relative">
-                  <Icon name="MapPin" className="absolute left-3 top-3 text-primary" size={20} />
-                  <Input
-                    placeholder="Куда"
-                    value={to}
-                    onChange={(e) => setTo(e.target.value)}
-                    className="pl-11 h-12 bg-secondary border-0"
-                  />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6 bg-card border-border">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Icon name="DollarSign" size={20} />
-                  Ваша цена
-                </h3>
-                <div className="text-3xl font-bold text-primary">
-                  {manualPrice || passengerPrice[0]} ₽
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                Укажите, сколько готовы заплатить. Водители увидят ваше предложение и смогут принять его или предложить свою цену.
-              </p>
-              
-              <div className="mb-6">
-                <label className="text-sm font-medium mb-2 block">
-                  Введите свою цену (мин. {minPrice} ₽)
-                </label>
-                <div className="relative">
-                  <Icon name="Ruble" className="absolute left-3 top-3 text-muted-foreground" size={20} />
-                  <Input
-                    type="number"
-                    placeholder={`От ${minPrice} ₽`}
-                    value={manualPrice}
-                    onChange={(e) => handlePriceChange(e.target.value)}
-                    min={minPrice}
-                    className="pl-11 h-12 bg-secondary border-0 text-lg font-semibold"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Или используйте слайдер ниже
-                </p>
-              </div>
-
-              <Slider
-                value={passengerPrice}
-                onValueChange={(value) => {
-                  setPassengerPrice(value);
-                  setManualPrice('');
-                }}
-                min={minPrice}
-                max={2000}
-                step={50}
-                className="mb-4"
-              />
-              <div className="flex justify-between text-sm text-muted-foreground mb-6">
-                <span>{minPrice} ₽</span>
-                <span>2000 ₽</span>
-              </div>
-
-              <Button
-                onClick={handlePublishOrder}
-                disabled={!from || !to || orderPublished}
-                className="w-full h-12 text-base font-semibold"
-              >
-                {orderPublished ? (
-                  <>
-                    <Icon name="Clock" className="mr-2" size={20} />
-                    Ожидание предложений... {formatTime(timeLeft)}
-                  </>
-                ) : (
-                  <>
-                    <Icon name="Send" className="mr-2" size={20} />
-                    Опубликовать заказ
-                  </>
-                )}
-              </Button>
-            </Card>
+            <OrderForm
+              from={from}
+              to={to}
+              passengerPrice={passengerPrice}
+              manualPrice={manualPrice}
+              minPrice={minPrice}
+              gettingLocation={gettingLocation}
+              orderPublished={orderPublished}
+              timeLeft={timeLeft}
+              onFromChange={setFrom}
+              onToChange={setTo}
+              onPriceChange={handlePriceChange}
+              onSliderChange={(value) => {
+                setPassengerPrice(value);
+                setManualPrice('');
+              }}
+              onGeolocation={getGeolocation}
+              onPublishOrder={handlePublishOrder}
+              formatTime={formatTime}
+            />
 
             {orderPublished && driverOffers.length > 0 && (
               <Card className="p-6 bg-card border-primary animate-slide-in-right">
@@ -496,179 +394,27 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
-            {mockRides.map((ride) => (
-              <Card key={ride.id} className="p-4 bg-card border-border hover:border-primary transition-colors cursor-pointer">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-start gap-3 mb-2">
-                      <div className="pt-1">
-                        <Icon name="Circle" size={10} className="text-muted-foreground mb-1" />
-                        <div className="w-px h-8 bg-border ml-1"></div>
-                        <Icon name="MapPin" size={10} className="text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-card-foreground">{ride.from}</p>
-                        <p className="text-sm font-medium text-card-foreground mt-6">{ride.to}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
-                      <Icon name="Calendar" size={12} />
-                      <span>{new Date(ride.date).toLocaleString('ru-RU')}</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-bold text-card-foreground mb-1">{ride.price} ₽</div>
-                    <Badge variant={ride.status === 'completed' ? 'default' : 'secondary'}>
-                      {ride.status === 'completed' ? 'Завершена' : 'Отменена'}
-                    </Badge>
-                  </div>
-                </div>
-              </Card>
-            ))}
+            <RideHistory rides={mockRides} />
           </TabsContent>
         </Tabs>
 
-        <Dialog open={showOffersDialog} onOpenChange={setShowOffersDialog}>
-          <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <div className="flex items-center justify-between">
-                <DialogTitle>Предложения водителей</DialogTitle>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Icon name="Clock" size={18} />
-                  <span className="font-mono font-semibold">{formatTime(timeLeft)}</span>
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Ваша цена: <span className="font-semibold text-primary">{manualPrice || passengerPrice[0]} ₽</span>
-              </p>
-            </DialogHeader>
-            <div className="space-y-3 py-4">
-              {sortedOffers.length === 0 ? (
-                <div className="text-center py-8">
-                  <Icon name="Search" size={48} className="mx-auto mb-4 text-muted-foreground animate-pulse" />
-                  <p className="text-muted-foreground">Ищем водителей...</p>
-                </div>
-              ) : (
-                sortedOffers.map((driver, index) => (
-                  <Card
-                    key={driver.id}
-                    className={`p-4 border-2 transition-all hover:border-primary cursor-pointer ${
-                      index === 0 ? 'border-primary bg-primary/5' : 'border-border'
-                    }`}
-                    onClick={() => handleAcceptOffer(driver)}
-                  >
-                    <div className="flex items-center gap-4">
-                      <Avatar className="w-14 h-14">
-                        <AvatarImage src={driver.photo} />
-                        <AvatarFallback>ВД</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-semibold">{driver.name}</h4>
-                          {index === 0 && <Badge className="bg-primary">Лучшая цена</Badge>}
-                        </div>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Icon name="Star" className="text-yellow-500 fill-yellow-500" size={14} />
-                            <span>{driver.rating}</span>
-                          </div>
-                          <span>•</span>
-                          <span>{driver.trips} поездок</span>
-                          <span>•</span>
-                          <span>{driver.car}</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                          <div className="flex items-center gap-1">
-                            <Icon name="Clock" size={14} />
-                            <span>{driver.arrivalTime}</span>
-                          </div>
-                          <span>•</span>
-                          <div className="flex items-center gap-1">
-                            <Icon name="Navigation" size={14} />
-                            <span>{driver.distance} км</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-primary">{driver.price} ₽</div>
-                        <div className="text-xs text-muted-foreground">
-                          {driver.price > (parseInt(manualPrice) || passengerPrice[0])
-                            ? `+${driver.price - (parseInt(manualPrice) || passengerPrice[0])} ₽`
-                            : driver.price < (parseInt(manualPrice) || passengerPrice[0])
-                            ? `-${(parseInt(manualPrice) || passengerPrice[0]) - driver.price} ₽`
-                            : 'Ваша цена'}
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                ))
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <DriverOffersDialog
+          open={showOffersDialog}
+          offers={driverOffers}
+          passengerPrice={parseInt(manualPrice) || passengerPrice[0]}
+          timeLeft={timeLeft}
+          onOpenChange={setShowOffersDialog}
+          onAcceptOffer={handleAcceptOffer}
+          formatTime={formatTime}
+        />
 
-        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-center">Оплата поездки</DialogTitle>
-            </DialogHeader>
-            {selectedDriver && (
-              <div className="space-y-6 py-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="w-16 h-16">
-                    <AvatarImage src={selectedDriver.photo} />
-                    <AvatarFallback>ВД</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h4 className="font-semibold text-lg">{selectedDriver.name}</h4>
-                    <p className="text-sm text-muted-foreground">{selectedDriver.car}</p>
-                  </div>
-                </div>
-
-                <div className="bg-secondary p-4 rounded-lg space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Стоимость поездки</span>
-                    <span className="font-semibold text-lg">{selectedDriver.price} ₽</span>
-                  </div>
-                  <div className="border-t border-border pt-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Icon name="CreditCard" size={16} className="text-muted-foreground" />
-                      <span className="text-muted-foreground">Карта водителя</span>
-                    </div>
-                    <p className="font-mono text-sm mt-1">{selectedDriver.cardNumber}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Button
-                    onClick={() => handlePayment(selectedDriver)}
-                    className="w-full h-12 text-base"
-                  >
-                    <Icon name="Smartphone" size={20} className="mr-2" />
-                    Оплатить через банковское приложение
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowPaymentDialog(false);
-                      toast({
-                        title: '✅ Водитель едет к вам!',
-                        description: `Прибудет через ${selectedDriver.arrivalTime}`
-                      });
-                    }}
-                    className="w-full h-12 text-base"
-                  >
-                    Оплачу наличными
-                  </Button>
-                </div>
-
-                <p className="text-xs text-center text-muted-foreground">
-                  При выборе онлайн-оплаты откроется ваше банковское приложение для перевода средств водителю
-                </p>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <PaymentDialog
+          open={showPaymentDialog}
+          driver={selectedDriver}
+          onOpenChange={setShowPaymentDialog}
+          onPayment={handlePayment}
+          onCashPayment={handleCashPayment}
+        />
       </div>
     </div>
   );
