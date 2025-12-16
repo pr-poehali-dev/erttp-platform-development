@@ -27,6 +27,7 @@ interface DriverOffer {
   price: number;
   arrivalTime: string;
   distance: number;
+  cardNumber: string;
 }
 
 interface Ride {
@@ -55,7 +56,8 @@ const mockDriverOffers: DriverOffer[] = [
     photo: 'https://api.dicebear.com/7.x/avataaars/svg?seed=driver1',
     price: 380,
     arrivalTime: '3 мин',
-    distance: 1.2
+    distance: 1.2,
+    cardNumber: '2200 7012 3456 7890'
   },
   {
     id: '2',
@@ -67,7 +69,8 @@ const mockDriverOffers: DriverOffer[] = [
     photo: 'https://api.dicebear.com/7.x/avataaars/svg?seed=driver2',
     price: 420,
     arrivalTime: '5 мин',
-    distance: 2.5
+    distance: 2.5,
+    cardNumber: '2200 7011 1111 2222'
   },
   {
     id: '3',
@@ -79,7 +82,8 @@ const mockDriverOffers: DriverOffer[] = [
     photo: 'https://api.dicebear.com/7.x/avataaars/svg?seed=driver3',
     price: 350,
     arrivalTime: '7 мин',
-    distance: 3.8
+    distance: 3.8,
+    cardNumber: '2200 7013 9999 8888'
   }
 ];
 
@@ -87,11 +91,15 @@ export default function Index() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [passengerPrice, setPassengerPrice] = useState([400]);
+  const [manualPrice, setManualPrice] = useState('');
   const [showOffersDialog, setShowOffersDialog] = useState(false);
   const [driverOffers, setDriverOffers] = useState<DriverOffer[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<DriverOffer | null>(null);
   const [timeLeft, setTimeLeft] = useState(120);
   const [orderPublished, setOrderPublished] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [minPrice] = useState(150);
 
   useEffect(() => {
     if (orderPublished && timeLeft > 0) {
@@ -136,8 +144,84 @@ export default function Index() {
     }
   }, [orderPublished]);
 
+  const getGeolocation = () => {
+    if (!navigator.geolocation) {
+      toast({
+        title: '❌ Ошибка',
+        description: 'Геолокация не поддерживается вашим браузером',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        try {
+          const response = await fetch(
+            `https://geocode-maps.yandex.ru/1.x/?apikey=YOUR_API_KEY&geocode=${longitude},${latitude}&format=json&lang=ru_RU`
+          );
+          const data = await response.json();
+          const address = data.response.GeoObjectCollection.featureMember[0]?.GeoObject.metaDataProperty.GeocoderMetaData.text || 'Адрес не найден';
+          
+          setFrom(address);
+          toast({
+            title: '✅ Местоположение определено',
+            description: address
+          });
+        } catch {
+          setFrom(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+          toast({
+            title: '✅ Координаты получены',
+            description: 'Введите адрес вручную для уточнения'
+          });
+        }
+        setGettingLocation(false);
+      },
+      (error) => {
+        setGettingLocation(false);
+        toast({
+          title: '❌ Ошибка геолокации',
+          description: error.message === 'User denied Geolocation' 
+            ? 'Разрешите доступ к геолокации в настройках браузера'
+            : 'Не удалось определить местоположение',
+          variant: 'destructive'
+        });
+      }
+    );
+  };
+
+  const handlePriceChange = (value: string) => {
+    const numValue = parseInt(value) || 0;
+    if (numValue < minPrice && value !== '') {
+      toast({
+        title: '⚠️ Слишком низкая цена',
+        description: `Минимальная цена поездки ${minPrice} ₽`,
+        variant: 'destructive'
+      });
+      return;
+    }
+    setManualPrice(value);
+    if (numValue >= minPrice) {
+      setPassengerPrice([numValue]);
+    }
+  };
+
   const handlePublishOrder = () => {
-    if (from && to && passengerPrice[0] > 0) {
+    const finalPrice = manualPrice ? parseInt(manualPrice) : passengerPrice[0];
+    
+    if (finalPrice < minPrice) {
+      toast({
+        title: '⚠️ Цена слишком низкая',
+        description: `Минимальная цена поездки ${minPrice} ₽`,
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (from && to && finalPrice > 0) {
       setOrderPublished(true);
       setShowOffersDialog(true);
       setTimeLeft(120);
@@ -153,10 +237,28 @@ export default function Index() {
     setSelectedDriver(driver);
     setShowOffersDialog(false);
     setOrderPublished(false);
+    setShowPaymentDialog(true);
+  };
+
+  const handlePayment = (driver: DriverOffer) => {
+    const amount = driver.price;
+    const cardNumber = driver.cardNumber.replace(/\s/g, '');
+    
+    const sbpUrl = `https://qr.nspk.ru/proactive/order?amount=${amount * 100}&bankAccount=${cardNumber}&name=${encodeURIComponent(driver.name)}`;
+    
+    window.open(sbpUrl, '_blank');
+    
     toast({
-      title: '✅ Поездка подтверждена!',
-      description: `${driver.name} едет к вам. Прибудет через ${driver.arrivalTime}`
+      title: '💳 Открываем оплату',
+      description: 'Выберите банковское приложение для оплаты'
     });
+
+    setTimeout(() => {
+      toast({
+        title: '✅ Водитель едет к вам!',
+        description: `Прибудет через ${driver.arrivalTime}`
+      });
+    }, 1500);
   };
 
   const formatTime = (seconds: number) => {
@@ -225,14 +327,29 @@ export default function Index() {
               </div>
 
               <div className="space-y-4">
-                <div className="relative">
-                  <Icon name="Circle" className="absolute left-3 top-3 text-muted-foreground" size={20} />
-                  <Input
-                    placeholder="Откуда"
-                    value={from}
-                    onChange={(e) => setFrom(e.target.value)}
-                    className="pl-11 h-12 bg-secondary border-0"
-                  />
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Icon name="Circle" className="absolute left-3 top-3 text-muted-foreground" size={20} />
+                    <Input
+                      placeholder="Откуда"
+                      value={from}
+                      onChange={(e) => setFrom(e.target.value)}
+                      className="pl-11 h-12 bg-secondary border-0"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={getGeolocation}
+                    disabled={gettingLocation}
+                    className="h-12 w-12 shrink-0"
+                  >
+                    {gettingLocation ? (
+                      <Icon name="Loader2" size={20} className="animate-spin" />
+                    ) : (
+                      <Icon name="Crosshair" size={20} />
+                    )}
+                  </Button>
                 </div>
                 <div className="relative">
                   <Icon name="MapPin" className="absolute left-3 top-3 text-primary" size={20} />
@@ -252,28 +369,54 @@ export default function Index() {
                   <Icon name="DollarSign" size={20} />
                   Ваша цена
                 </h3>
-                <div className="text-3xl font-bold text-primary">{passengerPrice[0]} ₽</div>
+                <div className="text-3xl font-bold text-primary">
+                  {manualPrice || passengerPrice[0]} ₽
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground mb-6">
+              <p className="text-sm text-muted-foreground mb-4">
                 Укажите, сколько готовы заплатить. Водители увидят ваше предложение и смогут принять его или предложить свою цену.
               </p>
+              
+              <div className="mb-6">
+                <label className="text-sm font-medium mb-2 block">
+                  Введите свою цену (мин. {minPrice} ₽)
+                </label>
+                <div className="relative">
+                  <Icon name="Ruble" className="absolute left-3 top-3 text-muted-foreground" size={20} />
+                  <Input
+                    type="number"
+                    placeholder={`От ${minPrice} ₽`}
+                    value={manualPrice}
+                    onChange={(e) => handlePriceChange(e.target.value)}
+                    min={minPrice}
+                    className="pl-11 h-12 bg-secondary border-0 text-lg font-semibold"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Или используйте слайдер ниже
+                </p>
+              </div>
+
               <Slider
                 value={passengerPrice}
-                onValueChange={setPassengerPrice}
-                min={100}
+                onValueChange={(value) => {
+                  setPassengerPrice(value);
+                  setManualPrice('');
+                }}
+                min={minPrice}
                 max={2000}
                 step={50}
                 className="mb-4"
               />
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>100 ₽</span>
+              <div className="flex justify-between text-sm text-muted-foreground mb-6">
+                <span>{minPrice} ₽</span>
                 <span>2000 ₽</span>
               </div>
 
               <Button
                 onClick={handlePublishOrder}
                 disabled={!from || !to || orderPublished}
-                className="w-full mt-6 h-12 text-base font-semibold"
+                className="w-full h-12 text-base font-semibold"
               >
                 {orderPublished ? (
                   <>
@@ -396,7 +539,7 @@ export default function Index() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
-                Ваша цена: <span className="font-semibold text-primary">{passengerPrice[0]} ₽</span>
+                Ваша цена: <span className="font-semibold text-primary">{manualPrice || passengerPrice[0]} ₽</span>
               </p>
             </DialogHeader>
             <div className="space-y-3 py-4">
@@ -449,10 +592,10 @@ export default function Index() {
                       <div className="text-right">
                         <div className="text-2xl font-bold text-primary">{driver.price} ₽</div>
                         <div className="text-xs text-muted-foreground">
-                          {driver.price > passengerPrice[0]
-                            ? `+${driver.price - passengerPrice[0]} ₽`
-                            : driver.price < passengerPrice[0]
-                            ? `-${passengerPrice[0] - driver.price} ₽`
+                          {driver.price > (parseInt(manualPrice) || passengerPrice[0])
+                            ? `+${driver.price - (parseInt(manualPrice) || passengerPrice[0])} ₽`
+                            : driver.price < (parseInt(manualPrice) || passengerPrice[0])
+                            ? `-${(parseInt(manualPrice) || passengerPrice[0]) - driver.price} ₽`
                             : 'Ваша цена'}
                         </div>
                       </div>
@@ -461,6 +604,69 @@ export default function Index() {
                 ))
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-center">Оплата поездки</DialogTitle>
+            </DialogHeader>
+            {selectedDriver && (
+              <div className="space-y-6 py-4">
+                <div className="flex items-center gap-4">
+                  <Avatar className="w-16 h-16">
+                    <AvatarImage src={selectedDriver.photo} />
+                    <AvatarFallback>ВД</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h4 className="font-semibold text-lg">{selectedDriver.name}</h4>
+                    <p className="text-sm text-muted-foreground">{selectedDriver.car}</p>
+                  </div>
+                </div>
+
+                <div className="bg-secondary p-4 rounded-lg space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Стоимость поездки</span>
+                    <span className="font-semibold text-lg">{selectedDriver.price} ₽</span>
+                  </div>
+                  <div className="border-t border-border pt-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Icon name="CreditCard" size={16} className="text-muted-foreground" />
+                      <span className="text-muted-foreground">Карта водителя</span>
+                    </div>
+                    <p className="font-mono text-sm mt-1">{selectedDriver.cardNumber}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Button
+                    onClick={() => handlePayment(selectedDriver)}
+                    className="w-full h-12 text-base"
+                  >
+                    <Icon name="Smartphone" size={20} className="mr-2" />
+                    Оплатить через банковское приложение
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowPaymentDialog(false);
+                      toast({
+                        title: '✅ Водитель едет к вам!',
+                        description: `Прибудет через ${selectedDriver.arrivalTime}`
+                      });
+                    }}
+                    className="w-full h-12 text-base"
+                  >
+                    Оплачу наличными
+                  </Button>
+                </div>
+
+                <p className="text-xs text-center text-muted-foreground">
+                  При выборе онлайн-оплаты откроется ваше банковское приложение для перевода средств водителю
+                </p>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
